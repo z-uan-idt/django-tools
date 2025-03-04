@@ -1,17 +1,17 @@
 #!/bin/bash
 
-echo "Django App Generator Builder"
-echo "============================"
+echo "Django App Generator Builder (PyQt6 Version)"
+echo "============================================"
 echo
 
-# Install PyInstaller if not already installed
-echo "Installing/Updating PyInstaller..."
-python3 -m pip install --upgrade pyinstaller
+# Install required packages if not already installed
+echo "Installing/Updating required packages..."
+python3 -m pip install --upgrade pyinstaller pyqt6
 if [ $? -ne 0 ]; then
-    echo "Failed to install PyInstaller."
+    echo "Failed to install required packages."
     exit 1
 fi
-echo "PyInstaller installed successfully."
+echo "Required packages installed successfully."
 echo
 
 # Clean build directories
@@ -39,11 +39,13 @@ python3 -m PyInstaller \
     --noconfirm \
     --onefile \
     --windowed \
-    --name=DjangoAppGenerator \
+    --name=DjangoAppGenerator-PyQt \
     --add-data="utils${separator}utils" \
     --add-data="gui${separator}gui" \
-    --hidden-import=tkinter \
-    --hidden-import=tkinter.ttk \
+    --hidden-import=PyQt6 \
+    --hidden-import=PyQt6.QtWidgets \
+    --hidden-import=PyQt6.QtCore \
+    --hidden-import=PyQt6.QtGui \
     main.py
 
 if [ $? -ne 0 ]; then
@@ -51,7 +53,7 @@ if [ $? -ne 0 ]; then
     echo "Build failed. Trying alternative method..."
     echo
     
-    python3 -c "import PyInstaller.__main__; PyInstaller.__main__.run(['--noconfirm', '--onefile', '--windowed', '--name=DjangoAppGenerator', '--add-data=utils${separator}utils', '--add-data=gui${separator}gui', '--hidden-import=tkinter', '--hidden-import=tkinter.ttk', 'main.py'])"
+    python3 -c "import PyInstaller.__main__; PyInstaller.__main__.run(['--noconfirm', '--onefile', '--windowed', '--name=DjangoAppGenerator-PyQt', '--add-data=utils${separator}utils', '--add-data=gui${separator}gui', '--hidden-import=PyQt6', '--hidden-import=PyQt6.QtWidgets', '--hidden-import=PyQt6.QtCore', '--hidden-import=PyQt6.QtGui', 'main.py'])"
     
     if [ $? -ne 0 ]; then
         echo
@@ -67,5 +69,5 @@ echo
 
 # Make the executable executable on macOS/Linux
 if [[ "$OSTYPE" == "darwin"* ]] || [[ "$OSTYPE" == "linux"* ]]; then
-    chmod +x dist/DjangoAppGenerator
+    chmod +x dist/DjangoAppGenerator-PyQt
 fi

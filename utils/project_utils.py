@@ -1,7 +1,6 @@
 import os
 import re
-from tkinter import messagebox
-
+from PyQt6.QtWidgets import QMessageBox
 from utils.templates.apps import apps_template
 from utils.templates.doc import docs_template
 from utils.templates.model import model_template
@@ -25,7 +24,7 @@ def update_settings_file(project_path, app_name):
         # Kiểm tra xem ứng dụng đã được thêm vào chưa
         app_pattern = r"['\"]apps\.{}['\"]".format(app_name)
         if re.search(app_pattern, settings_content):
-            messagebox.showinfo("Thông báo", f"Ứng dụng 'apps.{app_name}' đã tồn tại trong INSTALLED_APPS")
+            QMessageBox.information(None, "Thông báo", f"Ứng dụng 'apps.{app_name}' đã tồn tại trong INSTALLED_APPS")
             return True
 
         # Tìm vị trí INSTALLED_APPS trong file
@@ -36,11 +35,11 @@ def update_settings_file(project_path, app_name):
 
         match = re.search(installed_apps_pattern, settings_content, re.DOTALL)
         if not match:
-            messagebox.showwarning("Cảnh báo", "Không thể xác định định dạng của INSTALLED_APPS")
+            QMessageBox.warning(None, "Cảnh báo", "Không thể xác định định dạng của INSTALLED_APPS")
             return False
 
         apps_content = match.group(1)
-        print(apps_content)
+
         # Thêm app mới vào danh sách
         if apps_content.strip().endswith(','):
             # Nếu có dấu phẩy cuối cùng thì thêm vào
@@ -60,10 +59,10 @@ def update_settings_file(project_path, app_name):
         with open(settings_path, 'w', encoding='utf-8') as f:
             f.write(new_settings_content)
 
-        messagebox.showinfo("Thành công", f"Đã thêm 'apps.{app_name}' vào INSTALLED_APPS")
+        QMessageBox.information(None, "Thành công", f"Đã thêm 'apps.{app_name}' vào INSTALLED_APPS")
         return True
     except Exception as e:
-        messagebox.showerror("Lỗi", f"Lỗi khi cập nhật file settings.py: {str(e)}")
+        QMessageBox.critical(None, "Lỗi", f"Lỗi khi cập nhật file settings.py: {str(e)}")
         return False
 
 
@@ -159,5 +158,5 @@ def create_django_app_files(project_path, app_name, verbose_name=None):
             f.write(url_template(app_name))
         return True
     except Exception as e:
-        messagebox.showerror("Lỗi", f"Lỗi khi tạo thư mục và file cho ứng dụng '{app_name}': {str(e)}")
+        QMessageBox.critical(None, "Lỗi", f"Lỗi khi tạo thư mục và file cho ứng dụng '{app_name}': {str(e)}")
         return False
