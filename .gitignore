@@ -1,0 +1,8 @@
+.pyenv
+.env
+.venv
+venv
+build
+dist
+**/*/__pycache__
+*.spec
