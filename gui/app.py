@@ -112,7 +112,7 @@ class EnvSetupApp(QMainWindow):
     def create_widgets(self):
         # Tạo widget tab
         self.tab_widget = QTabWidget()
-        
+
         # Ô nhập đường dẫn
         self.project_path = QLineEdit()
         self.project_path.setEnabled(False)
@@ -224,84 +224,245 @@ class EnvSetupApp(QMainWindow):
     def pull_code(self):
         project_name = self.project_name.text().strip()
         github_path = self.github_path.text().strip()
-        github_path_git = github_path
         
-        if not github_path_git.endswith(".git"):
-            github_path_git = github_path_git + ".git"
+        # Handle Git URL formatting
+        if not github_path.endswith(".git"):
+            github_path_git = github_path + ".git"
+        else:
+            github_path_git = github_path
         
         project_path = self.project_path.text().strip()
         project_name_dir = os.path.join(project_path, project_name)
-        is_remove = github_path_git.endswith("django-base") or github_path_git.endswith("django-base.git")
-        remove_dir = " && " + self.remove_folder(os.path.join(project_path, project_name, ".git")) if is_remove else ""
         
-        # Sử dụng shell để kích hoạt môi trường và cài đặt
-        clone_command = f"cd {project_path} && git clone {github_path_git} {project_name} && cd {project_name_dir} {remove_dir}"
+        # Check if we need to remove the .git directory (for django-base repos)
+        is_django_base = "django-base" in github_path_git
         
         self.progress.setValue(0)
         self.env_tab.log(f"Pulling code from {github_path}...", "info")
 
         def run_clone_code(update_signal, progress_signal, finished_signal):
             try:
+                # Signal initial progress
                 progress_signal.emit(30)
-
+                
+                # First, create the directory if it doesn't exist
+                os.makedirs(project_path, exist_ok=True)
+                
+                # Clone the repository
+                clone_cmd = ["git", "clone", github_path_git, project_name]
+                
+                # Execute the git clone command
                 process = subprocess.Popen(
-                    clone_command,
+                    clone_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    shell=True
+                    cwd=project_path,  # Set the working directory
+                    bufsize=1  # Line buffered
                 )
                 
-                while process.poll() is None:
-                    line = process.stderr.readline()
-                    if line:
-                        update_signal.emit(line.strip(), "black")
-                        
-                        match = re.search(r'Receiving objects:\s+(\d+)%', line)
-                        if match:
-                            percentage = match.group(1)
-                            progress_signal.emit(percentage)
-                        
-                    line = process.stdout.readline()
-                    if line:
-                        update_signal.emit(line.strip(), "black")
+                # Platform-independent output reading approach
+                import threading
+                import queue
                 
-                README = os.path.join(project_name_dir, "README.md")
-                if os.path.exists(README) and os.path.isfile(README):
-                    content_readme = read_file(os.path.join(project_name_dir, "README.md"))
-                    
-                    if content_readme:
-                        if "# Django Base Project" in content_readme:
-                            content_readme = content_readme.replace("# Django Base Project", f"# {project_name}")
-
-                        if "django-boilderpalte/" in content_readme:
-                            content_readme = content_readme.replace("django-boilderpalte/", f"{project_name}/")
-
-                        create_file(README, content_readme)
+                output_queue = queue.Queue()
                 
-                progress_signal.emit(90)
+                def read_output(stream, queue, stream_name):
+                    for line in iter(stream.readline, ''):
+                        if line:
+                            queue.put((stream_name, line.strip()))
+                    stream.close()
                 
+                # Start threads to read stdout and stderr
+                stdout_thread = threading.Thread(
+                    target=read_output, 
+                    args=(process.stdout, output_queue, "stdout")
+                )
+                stderr_thread = threading.Thread(
+                    target=read_output, 
+                    args=(process.stderr, output_queue, "stderr")
+                )
+                
+                stdout_thread.daemon = True
+                stderr_thread.daemon = True
+                stdout_thread.start()
+                stderr_thread.start()
+                
+                # Process output from both streams
+                while process.poll() is None or not output_queue.empty():
+                    try:
+                        stream_name, line = output_queue.get(timeout=0.1)
+                        if line:
+                            update_signal.emit(line, "black")
+                            if stream_name == "stderr":
+                                # Check for progress info
+                                match = re.search(r'Receiving objects:\s+(\d+)%', line)
+                                if match:
+                                    percentage = int(match.group(1))
+                                    progress_signal.emit(30 + int(percentage * 0.5))  # Scale to 30-80%
+                        output_queue.task_done()
+                    except queue.Empty:
+                        pass
+                
+                # Wait for process to complete
+                process.wait()
+                
+                # Make sure threads are done
+                stdout_thread.join(timeout=1)
+                stderr_thread.join(timeout=1)
+                
+                # Process complete, check result
                 if process.returncode == 0:
+                    update_signal.emit("Git clone completed successfully", "green")
+                    progress_signal.emit(80)
+                    
+                    # Remove .git directory if needed
+                    if is_django_base and os.path.exists(os.path.join(project_name_dir, ".git")):
+                        try:
+                            # Inside run_clone_code function where you handle git removal:
+                            is_remove = github_path_git.endswith("django-base") or github_path_git.endswith("django-base.git")
+
+                            if is_remove:
+                                update_signal.emit("Removing .git directory for django-base template...", "info")
+                                success = self.remove_git_directory(project_name_dir, update_signal)
+                                if not success:
+                                    update_signal.emit("Warning: Could not fully remove .git directory. This won't affect your project.", "warning")
+                            update_signal.emit("Removed .git directory", "black")
+                        except Exception as e:
+                            update_signal.emit(f"Warning: Could not remove .git directory: {str(e)}", "orange")
+                    
+                    # Update README if it exists
+                    readme_path = os.path.join(project_name_dir, "README.md")
+                    if os.path.exists(readme_path) and os.path.isfile(readme_path):
+                        try:
+                            with open(readme_path, 'r', encoding='utf-8') as f:
+                                content_readme = f.read()
+                            
+                            if content_readme:
+                                if "# Django Base Project" in content_readme:
+                                    content_readme = content_readme.replace("# Django Base Project", f"# {project_name}")
+                                
+                                if "django-boilderpalte/" in content_readme:
+                                    content_readme = content_readme.replace("django-boilderpalte/", f"{project_name}/")
+                                
+                                with open(readme_path, 'w', encoding='utf-8') as f:
+                                    f.write(content_readme)
+                                    
+                                update_signal.emit("Updated README.md", "black")
+                        except Exception as e:
+                            update_signal.emit(f"Warning: Could not update README: {str(e)}", "orange")
+                    
                     progress_signal.emit(100)
                     finished_signal.emit(True, "Pulled the code successfully")
-                    self.project_path.setText(os.path.join(project_path, project_name))
-                    self.browse_project_path(self.project_path.text().strip())
-                    self.project_name.setText("django-base")
+                    
+                    # Use a signal to update the UI
+                    update_signal.emit("PROJECT_PATH:" + os.path.join(project_path, project_name), "command")
                 else:
+                    stderr_output = ""
+                    while not output_queue.empty():
+                        try:
+                            stream_name, line = output_queue.get(timeout=0.1)
+                            if stream_name == "stderr":
+                                stderr_output += line + "\n"
+                            output_queue.task_done()
+                        except queue.Empty:
+                            break
+                    
+                    update_signal.emit(f"Error: Git clone failed: {stderr_output}", "red")
                     progress_signal.emit(0)
                     finished_signal.emit(False, "Pulling code failed")
+                    
             except Exception as e:
+                import traceback
+                traceback_str = traceback.format_exc()
                 progress_signal.emit(0)
-                update_signal.emit(f"Lỗi: {str(e)}", "error")
+                update_signal.emit(f"Error: {str(e)}", "red")
+                update_signal.emit(traceback_str, "red")
                 finished_signal.emit(False, str(e))
-                
-        # Tạo và cấu hình luồng worker
+        
+        # Create and configure the worker thread
         self.worker = WorkerThread(run_clone_code)
-        self.worker.update_signal.connect(self.env_tab.log)
+        self.worker.update_signal.connect(self.handle_update_signal)
         self.worker.progress_signal.connect(self.progress.setValue)
         self.worker.finished_signal.connect(self.env_tab.on_task_finished)
         self.worker.start()
-    
+        
+    def remove_git_directory(self, directory_path, update_signal):
+        """Safely remove a .git directory even when locked files are present."""
+        import shutil
+        import os
+        import time
+        import subprocess
+        import platform
+        
+        git_dir = os.path.join(directory_path, ".git")
+        
+        if not os.path.exists(git_dir):
+            update_signal.emit("No .git directory found", "info")
+            return True
+        
+        # Step 1: Try to use Python's shutil.rmtree with error handling
+        try:
+            def handle_readonly(func, path, exc_info):
+                """Handle read-only files by making them writable first."""
+                # Make the file/directory writable if that's the issue
+                os.chmod(path, 0o777)
+                # Then try the removal operation again
+                func(path)
+                
+            update_signal.emit("Attempting to remove .git directory...", "info")
+            shutil.rmtree(git_dir, onerror=handle_readonly)
+            update_signal.emit("Successfully removed .git directory", "green")
+            return True
+        except Exception as e:
+            update_signal.emit(f"First removal attempt failed: {str(e)}", "warning")
+        
+        # Step 2: Wait briefly and try again with Python
+        time.sleep(1)
+        try:
+            shutil.rmtree(git_dir)
+            update_signal.emit("Successfully removed .git directory on second attempt", "green")
+            return True
+        except Exception as e:
+            update_signal.emit(f"Second removal attempt failed: {str(e)}", "warning")
+        
+        # Step 3: As a last resort, use the system's command-line tools
+        try:
+            update_signal.emit("Trying system commands to remove .git directory...", "info")
+            
+            if platform.system() == "Windows":
+                # On Windows, use both rd and del commands for stubborn files
+                subprocess.run(["attrib", "-r", "-s", "-h", "/S", "/D", git_dir], 
+                            shell=True, check=False)
+                
+                subprocess.run(["rd", "/s", "/q", git_dir], 
+                            shell=True, check=True)
+            else:
+                # On Unix-like systems (Linux, macOS)
+                subprocess.run(["chmod", "-R", "777", git_dir], 
+                            check=False)
+                
+                subprocess.run(["rm", "-rf", git_dir], 
+                            check=True)
+                
+            update_signal.emit("Successfully removed .git directory using system commands", "green")
+            return True
+        except Exception as e:
+            update_signal.emit(f"Failed to remove .git directory: {str(e)}", "red")
+            return False
+
+    def handle_update_signal(self, message, color):
+        """Handle update signals from worker thread, including special commands"""
+        if color == "command" and message.startswith("PROJECT_PATH:"):
+            # Extract path and update UI safely
+            path = message[len("PROJECT_PATH:"):]
+            self.project_path.setText(path)
+            self.browse_project_path(path)
+            self.project_name.setText("django-base")
+        else:
+            # Normal log message
+            self.env_tab.log(message, color)
+        
     def browse_project_path(self, folder_path_default=None):
         if folder_path_default:
             folder_path = folder_path_default
