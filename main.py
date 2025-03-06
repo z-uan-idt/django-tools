@@ -14,6 +14,8 @@ if __name__ == "__main__":
 
     # Khởi tạo ứng dụng QApplication
     app = QApplication(sys.argv)
+    app.setApplicationName("Python Django Base Setup")
+    app.setApplicationDisplayName("Python Django Base Setup")
     
     # Kiểm tra PyQt6 đã cài đặt
     try:

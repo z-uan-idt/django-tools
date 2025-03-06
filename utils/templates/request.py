@@ -1,5 +1,9 @@
+def firstupper(value: str):
+    return value[0].upper() + value[1:]
+
+
 def request_serializer_template(app_name):
-    app_name_capitalize = app_name.capitalize()
+    app_name_capitalize = firstupper(app_name)
 
     return f"""from rest_framework import serializers
 from utils.paginator import Paginator
@@ -44,7 +48,7 @@ class {app_name_capitalize}Serializer(serializers.ModelSerializer):
 """
 
 def response_serializer_template(app_name):
-    app_name_capitalize = app_name.capitalize()
+    app_name_capitalize = firstupper(app_name)
 
     return f"""from rest_framework import serializers
 

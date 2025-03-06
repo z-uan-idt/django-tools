@@ -1,5 +1,9 @@
+def firstupper(value: str):
+    return value[0].upper() + value[1:]
+
+
 def apps_template(app_name, verbose_name):
-    class_name = app_name.capitalize() + "Config"
+    class_name = firstupper(app_name) + "Config"
             
     return f"""from django.apps import AppConfig
 

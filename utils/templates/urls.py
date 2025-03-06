@@ -1,6 +1,10 @@
+def firstupper(value: str):
+    return value[0].upper() + value[1:]
+
+
 def url_template(app_name):
-    app_name_capitalize = app_name.capitalize()
-    api_view_name = app_name_capitalize + "ViewAPI"
+    app_name_capitalize = firstupper(app_name)
+    api_view_name = "API" + app_name_capitalize
 
     return f"""from rest_framework.routers import DefaultRouter
 from django.urls import path, include

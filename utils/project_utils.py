@@ -1,16 +1,15 @@
 import os
 import re
-from PyQt6.QtWidgets import QMessageBox
+from utils.file_utils import create_file, read_file
 from utils.templates.apps import apps_template
 from utils.templates.doc import docs_template
-from utils.templates.model import model_template
 from utils.templates.request import request_serializer_template, response_serializer_template
 from utils.templates.service import services_template
 from utils.templates.urls import url_template
 from utils.templates.views import views_template
 
 
-def update_settings_file(project_path, app_name):
+def update_settings_file(project_path, app_name, logger=None):
     """Cập nhật file settings.py để thêm ứng dụng vào INSTALLED_APPS"""
     # Tìm file settings.py
     # Sử dụng file settings.py đầu tiên tìm thấy
@@ -18,13 +17,12 @@ def update_settings_file(project_path, app_name):
 
     try:
         # Đọc nội dung file settings.py
-        with open(settings_path, 'r', encoding='utf-8') as f:
-            settings_content = f.read()
+        settings_content = read_file(settings_path)
 
         # Kiểm tra xem ứng dụng đã được thêm vào chưa
         app_pattern = r"['\"]apps\.{}['\"]".format(app_name)
         if re.search(app_pattern, settings_content):
-            QMessageBox.information(None, "Thông báo", f"Ứng dụng 'apps.{app_name}' đã tồn tại trong INSTALLED_APPS")
+            logger(f"The application 'apps.{app_name}' already exists in INSTALLED_APPS", "error")
             return True
 
         # Tìm vị trí INSTALLED_APPS trong file
@@ -35,7 +33,7 @@ def update_settings_file(project_path, app_name):
 
         match = re.search(installed_apps_pattern, settings_content, re.DOTALL)
         if not match:
-            QMessageBox.warning(None, "Cảnh báo", "Không thể xác định định dạng của INSTALLED_APPS")
+            logger("Unable to determine format of INSTALLED_APPS", "error")
             return False
 
         apps_content = match.group(1)
@@ -56,17 +54,16 @@ def update_settings_file(project_path, app_name):
             new_app + settings_content[insert_pos:]
 
         # Ghi lại file settings.py
-        with open(settings_path, 'w', encoding='utf-8') as f:
-            f.write(new_settings_content)
+        create_file(settings_path, new_settings_content)
 
-        QMessageBox.information(None, "Thành công", f"Đã thêm 'apps.{app_name}' vào INSTALLED_APPS")
+        logger(f"Added 'apps.{app_name}' to INSTALLED_APPS", "success")
         return True
     except Exception as e:
-        QMessageBox.critical(None, "Lỗi", f"Lỗi khi cập nhật file settings.py: {str(e)}")
+        logger(f"Error updating settings.py file: {str(e)}", "error")
         return False
 
 
-def create_django_app_files(project_path, app_name, verbose_name=None):
+def create_django_app_files(project_path, app_name, verbose_name=None, logger=None):
     """Tạo các thư mục và file cho một ứng dụng Django"""
     if verbose_name is None:
         verbose_name = app_name.capitalize()
@@ -85,28 +82,13 @@ def create_django_app_files(project_path, app_name, verbose_name=None):
             # Thêm file __init__.py nếu chưa tồn tại
             init_file = os.path.join(dir_path, "__init__.py")
             if not os.path.exists(init_file):
-                with open(init_file, 'w', encoding='utf-8') as f:
-                    if dir_name == "models":
-                        app_name_capitalize  = app_name.capitalize()
-                        f.write(f"from .{app_name}.py import {app_name_capitalize}")
-
-                    pass
-            
-            if dir_name == "models":
-                # Thêm file {app_name}.py nếu chưa tồn tại
-                model_file = os.path.join(dir_path, f"{app_name}.py")
-                if not os.path.exists(model_file):
-                    with open(model_file, 'w', encoding='utf-8') as f:
-                        f.write(model_template(app_name))
-                
-                continue
+                create_file(init_file, "")
             
             if dir_name == "views":
                 # Thêm file {app_name}_view.py nếu chưa tồn tại
                 view_file = os.path.join(dir_path, f"{app_name}_view.py")
                 if not os.path.exists(view_file):
-                    with open(view_file, 'w', encoding='utf-8') as f:
-                        f.write(views_template(app_name))
+                    create_file(view_file, views_template(app_name))
                 
                 continue
             
@@ -114,14 +96,12 @@ def create_django_app_files(project_path, app_name, verbose_name=None):
                 # Thêm file request_serializer.py nếu chưa tồn tại
                 request_file = os.path.join(dir_path, f"request_serializer.py")
                 if not os.path.exists(request_file):
-                    with open(request_file, 'w', encoding='utf-8') as f:
-                        f.write(request_serializer_template(app_name))
+                    create_file(request_file, request_serializer_template(app_name))
                 
                 # Thêm file response_serializer.py nếu chưa tồn tại
                 response_file = os.path.join(dir_path, f"response_serializer.py")
                 if not os.path.exists(response_file):
-                    with open(response_file, 'w', encoding='utf-8') as f:
-                        f.write(response_serializer_template(app_name))
+                    create_file(response_file, response_serializer_template(app_name))
 
                 continue
             
@@ -129,34 +109,29 @@ def create_django_app_files(project_path, app_name, verbose_name=None):
                 # Thêm file {app_name}_service.py nếu chưa tồn tại
                 service_file = os.path.join(dir_path, f"{app_name}_service.py")
                 if not os.path.exists(service_file):
-                    with open(service_file, 'w', encoding='utf-8') as f:
-                        f.write(services_template(app_name))
+                    create_file(service_file, services_template(app_name))
             
             if dir_name == "docs":
                 # Thêm file {app_name}_swagger.py nếu chưa tồn tại
                 doc_file = os.path.join(dir_path, f"{app_name}_swagger.py")
                 if not os.path.exists(doc_file):
-                    with open(doc_file, 'w', encoding='utf-8') as f:
-                        f.write(docs_template(app_name))
+                    create_file(doc_file, docs_template(app_name))
             
         # Tạo file __init__.py trong thư mục ứng dụng nếu chưa tồn tại
         init_file = os.path.join(app_path, "__init__.py")
         if not os.path.exists(init_file):
-            with open(init_file, 'w', encoding='utf-8') as f:
-                pass
+            create_file(init_file, "")
 
         # Tạo file admin.py
-        with open(os.path.join(app_path, "admin.py"), 'w', encoding='utf-8') as f:
-            f.write("from django.contrib import admin\n\n# Register your models here.\n")
+        create_file(os.path.join(app_path, "admin.py"), "from django.contrib import admin\n\n# Register your models here.\n")
 
         # Tạo file apps.py với cấu hình đúng và verbose_name
-        with open(os.path.join(app_path, "apps.py"), 'w', encoding='utf-8') as f:
-            f.write(apps_template(app_name, verbose_name))
+        create_file(os.path.join(app_path, "apps.py"), apps_template(app_name, verbose_name))
 
         # Tạo file urls.py
-        with open(os.path.join(app_path, "urls.py"), 'w', encoding='utf-8') as f:
-            f.write(url_template(app_name))
+        create_file(os.path.join(app_path, "urls.py"), url_template(app_name))
+        
         return True
     except Exception as e:
-        QMessageBox.critical(None, "Lỗi", f"Lỗi khi tạo thư mục và file cho ứng dụng '{app_name}': {str(e)}")
+        logger(f"Error when creating folders and files for the application '{app_name}': {str(e)}", "error")
         return False

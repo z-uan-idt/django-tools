@@ -1,7 +1,11 @@
+def firstupper(value: str):
+    return value[0].upper() + value[1:]
+
+
 def views_template(app_name):
-        app_name_capitalize = app_name.capitalize()
+        app_name_capitalize = firstupper(app_name)
         service_name = app_name_capitalize + "Service"
-        class_name = app_name_capitalize + "ViewAPI"
+        class_name = "API" + app_name_capitalize
 
         return f"""from rest_framework.permissions import IsAuthenticated
 from utils.views import APIGenericView

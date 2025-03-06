@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
     QPushButton, QTextEdit, QProgressBar, QFileDialog, QMessageBox
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal
 
 
 class WorkerThread(QThread):
@@ -29,7 +29,7 @@ class WorkerThread(QThread):
                 *self.args, **self.kwargs
             )
         except Exception as e:
-            self.update_signal.emit(f"Lỗi: {str(e)}", "error")
+            self.update_signal.emit(f"Error: {str(e)}", "error")
             self.finished_signal.emit(False, str(e))
 
 
@@ -48,57 +48,27 @@ class EnvTab(QWidget):
         # Frame điều khiển
         control_layout = QHBoxLayout()
         
-        self.setStyleSheet("""
-            * {
-                line-height: 1;
-            } 
-            QLineEdit {
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                padding: 6px;
-                background-color: white;
-            }
-            QLineEdit:focus {
-                border: 1px solid #3498db;
-            }
-            QPushButton {
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                padding: 6px 12px;
-                background-color: #f5f5f5;
-                min-height: 20px;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-            QPushButton:pressed {
-                background-color: #d0d0d0;
-            }
-        """)
-        
-        # Nhập tên môi trường
-        control_layout.addWidget(QLabel("Tên môi trường:"))
         self.env_name = QLineEdit(".pyenv")
+        self.env_name.setPlaceholderText("Environment name")
+        self.env_name.setEnabled(False)
         control_layout.addWidget(self.env_name)
         
         # Nút tạo môi trường
-        self.create_button = QPushButton("Tạo môi trường")
+        self.create_button = QPushButton("Create")
         self.create_button.clicked.connect(self.create_environment)
+        self.create_button.setEnabled(False)
         control_layout.addWidget(self.create_button)
         
         # Nút cài đặt requirements
-        self.requirements_button = QPushButton("Cài đặt requirements.txt")
+        self.requirements_button = QPushButton("Install requirements.txt")
         self.requirements_button.clicked.connect(self.install_requirements)
+        self.requirements_button.setEnabled(False)
         control_layout.addWidget(self.requirements_button)
         
         layout.addLayout(control_layout)
         
-        # Thanh tiến trình
-        self.progress = QProgressBar()
-        layout.addWidget(self.progress)
-        
         # Khu vực nhật ký
-        layout.addWidget(QLabel("Nhật ký:"))
+        layout.addWidget(QLabel("History:"))
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         layout.addWidget(self.log_text)
@@ -112,22 +82,30 @@ class EnvTab(QWidget):
             color = "green"
         elif tag == "info":
             color = "blue"
-            
-        self.log_text.append(f"<span style='color:{color};'>{message}</span>")
-        # Cuộn xuống cuối
-        scrollbar = self.log_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+
+        project_path = self.app.project_path.text().strip()
+    
+        # Kiểm tra xem self.log_text có tồn tại không
+        if hasattr(self, 'log_text') and self.log_text is not None:
+            path_string = "" if not project_path else f"<strong>{project_path}: </strong>"
+            self.log_text.append(f"<span style='color:{color};'>{path_string}{message}</span>")
+            # Cuộn xuống cuối
+            scrollbar = self.log_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+        else:
+            # Nếu không có log_text, in ra console
+            print(f"[{tag.upper() if tag else 'LOG'}] {message}")
     
     def reset_progress_bar(self):
         """Reset thanh tiến trình về 0%"""
-        self.progress.setValue(0)
+        self.app.progress.setValue(0)
     
     def get_system_python(self):
         """Lấy đường dẫn đến Python hệ thống (không phải Python được đóng gói)"""
         # Kiểm tra xem ứng dụng có đang chạy từ bản đóng gói không
         if getattr(sys, 'frozen', False):
             # Đang chạy từ bản đóng gói - cần tìm Python hệ thống
-            self.log("Phát hiện ứng dụng đã đóng gói, đang tìm Python hệ thống...", "info")
+            self.log("Packaged application detection, looking for system Python...", "info")
             
             if self.app.os_type == "Windows":
                 # Thử một số vị trí cài đặt Python phổ biến trên Windows
@@ -168,7 +146,7 @@ class EnvTab(QWidget):
                             )
                         
                         if result.returncode == 0:
-                            self.log(f"Đã tìm thấy Python hệ thống: {path}", "success")
+                            self.log(f"System Python found: {path}", "success")
                             return path
                     except Exception:
                         continue
@@ -185,7 +163,7 @@ class EnvTab(QWidget):
                         startupinfo=startupinfo
                     )
                     if result.returncode == 0:
-                        self.log("Đã tìm thấy Python Launcher", "success")
+                        self.log("Python Launcher found", "success")
                         return "py -3"
                 except Exception:
                     pass
@@ -211,14 +189,13 @@ class EnvTab(QWidget):
                             text=True
                         )
                         if result.returncode == 0:
-                            self.log(f"Đã tìm thấy Python hệ thống: {path}", "success")
+                            self.log(f"System Python found: {path}", "success")
                             return path
                     except Exception:
                         continue
             
             # Nếu không tìm thấy Python
-            self.log("Không tìm thấy Python hệ thống. Vui lòng cài đặt Python.", "error")
-            QMessageBox.critical(self, "Lỗi", "Không tìm thấy Python hệ thống. Vui lòng cài đặt Python.")
+            self.log("System Python not found. Please install Python.", "error")
             return None
         else:
             # Đang chạy từ mã nguồn - sử dụng Python hiện tại
@@ -228,20 +205,30 @@ class EnvTab(QWidget):
         """Tạo môi trường ảo Python mới"""
         env_name = self.env_name.text().strip()
         if not env_name:
-            QMessageBox.critical(self, "Lỗi", "Vui lòng nhập tên môi trường")
+            self.log("Please enter an environment name", "error")
             return
 
         # Đảm bảo đường dẫn dự án tồn tại
         project_path = self.app.project_path.text().strip()
+        
+        if not project_path:
+            self.log(f"Please select the project path", "error")
+            return
+        
         if not os.path.exists(project_path):
-            QMessageBox.critical(self, "Lỗi", f"Đường dẫn dự án không tồn tại: {project_path}")
+            self.log(f"Project path does not exist: {project_path}", "error")
+            return
+        
+        env_path = os.path.join(project_path, env_name)
+        if os.path.exists(env_path):
+            self.log(f"Environment {env_name} existed", "error")
             return
 
         # Chuyển đến thư mục dự án
         os.chdir(project_path)
 
-        self.progress.setValue(0)
-        self.log(f"Đang tạo môi trường Python tại: {project_path}/{env_name}", "info")
+        self.app.progress.setValue(0)
+        self.log(f"Creating a Python environment at: {project_path}/{env_name}", "info")
 
         # Lấy đường dẫn Python hệ thống
         python_executable = self.get_system_python()
@@ -271,7 +258,7 @@ class EnvTab(QWidget):
                             startupinfo=startupinfo
                         )
                     else:
-                        update_signal.emit("Python Launcher chỉ có sẵn trên Windows", "error")
+                        update_signal.emit("Python Launcher is only available on Windows", "error")
                         return
                 else:
                     # Sử dụng đường dẫn Python trực tiếp
@@ -301,45 +288,45 @@ class EnvTab(QWidget):
 
                 if process.returncode == 0:
                     progress_signal.emit(100)
-                    update_signal.emit(f"Đã tạo thành công môi trường: {env_name}", "success")
+                    update_signal.emit(f"Environment successfully created: {env_name}", "success")
 
                     # Hiển thị cách kích hoạt môi trường
                     if self.app.os_type == "Windows":
                         activate_cmd = f".\\{env_name}\\Scripts\\activate"
                         activate_ps_cmd = f".\\{env_name}\\Scripts\\Activate.ps1"
-                        update_signal.emit(f"Để kích hoạt môi trường trong CMD: {activate_cmd}", "info")
-                        update_signal.emit(f"Để kích hoạt môi trường trong PowerShell: {activate_ps_cmd}", "info")
+                        update_signal.emit(f"To activate the environment in CMD: {activate_cmd}", "info")
+                        update_signal.emit(f"To enable the environment in PowerShell: {activate_ps_cmd}", "info")
                     else:  # macOS/Linux
                         activate_cmd = f"source ./{env_name}/bin/activate"
-                        update_signal.emit(f"Để kích hoạt môi trường, sử dụng lệnh: {activate_cmd}", "info")
+                        update_signal.emit(f"To activate the environment, use the command: {activate_cmd}", "info")
                     
-                    finished_signal.emit(True, "Đã tạo môi trường thành công")
+                    finished_signal.emit(True, "Environment created successfully")
                 else:
                     progress_signal.emit(0)
                     if stderr:
-                        update_signal.emit(f"Lỗi khi tạo môi trường: {stderr}", "error")
+                        update_signal.emit(f"Error creating environment: {stderr}", "error")
                     else:
-                        update_signal.emit("Lỗi không xác định khi tạo môi trường", "error")
-                    finished_signal.emit(False, "Không thể tạo môi trường")
+                        update_signal.emit("Unknown error while creating environment", "error")
+                    finished_signal.emit(False, "Unable to create environment")
 
             except Exception as e:
                 progress_signal.emit(0)
-                update_signal.emit(f"Lỗi: {str(e)}", "error")
+                update_signal.emit(f"Error: {str(e)}", "error")
                 finished_signal.emit(False, str(e))
 
         # Tạo và cấu hình luồng worker
         self.worker = WorkerThread(run_venv_creation)
         self.worker.update_signal.connect(self.log)
-        self.worker.progress_signal.connect(self.progress.setValue)
+        self.worker.progress_signal.connect(self.app.progress.setValue)
         self.worker.finished_signal.connect(self.on_task_finished)
         self.worker.start()
     
     def on_task_finished(self, success, message):
         """Xử lý khi tác vụ hoàn thành"""
         if success:
-            QMessageBox.information(self, "Thành công", message)
+            self.log(message, "success")
         else:
-            QMessageBox.critical(self, "Lỗi", message)
+            self.log(message, "error")
         
         # Reset thanh tiến trình sau khi hoàn thành
         if success:
@@ -349,23 +336,29 @@ class EnvTab(QWidget):
         """Cài đặt các gói từ requirements.txt"""
         env_name = self.env_name.text().strip()
         if not env_name:
-            QMessageBox.critical(self, "Lỗi", "Vui lòng nhập tên môi trường")
+            self.log("Please enter an environment name", "error")
             return
 
         # Đảm bảo đường dẫn dự án tồn tại
         project_path = self.app.project_path.text().strip()
+        
+        if not project_path:
+            self.log(f"Please select the project path", "error")
+            return
+        
         if not os.path.exists(project_path):
-            QMessageBox.critical(self, "Lỗi", f"Đường dẫn dự án không tồn tại: {project_path}")
+            self.log(f"Project path does not exist: {project_path}", "error")
             return
 
+        self.log(f"Open {project_path}", "info")
         # Chuyển đến thư mục dự án
         os.chdir(project_path)
 
         if not os.path.exists(env_name):
             response = QMessageBox.question(
                 self, 
-                "Môi trường không tồn tại", 
-                f"Môi trường {env_name} chưa tồn tại. Bạn có muốn tạo nó trước không?",
+                "The environment does not exist", 
+                f"Environment {env_name} does not exist yet. Do you want to create it first?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -378,16 +371,16 @@ class EnvTab(QWidget):
         # Mở hộp thoại chọn file requirements.txt
         req_file, _ = QFileDialog.getOpenFileName(
             self,
-            "Chọn file requirements.txt",
-            "",
+            "Select the requirements.txt file",
+            project_path,
             "Text files (*.txt);;All files (*.*)"
         )
 
         if not req_file:
             return
 
-        self.progress.setValue(0)
-        self.log(f"Đang cài đặt các gói từ {req_file}...", "info")
+        self.app.progress.setValue(0)
+        self.log(f"Installing word packages {req_file}...", "info")
 
         # Định nghĩa tác vụ chạy trong luồng worker
         def run_requirements_install(update_signal, progress_signal, finished_signal):
@@ -428,8 +421,8 @@ class EnvTab(QWidget):
 
                 # Kiểm tra xem pip có tồn tại không
                 if not os.path.exists(pip_path):
-                    update_signal.emit(f"Không tìm thấy pip tại {pip_path}", "error")
-                    finished_signal.emit(False, f"Không tìm thấy pip tại {pip_path}")
+                    update_signal.emit(f"No pip found at {pip_path}", "error")
+                    finished_signal.emit(False, f"No pip found at {pip_path}")
                     return
 
                 progress_signal.emit(10)
@@ -439,7 +432,7 @@ class EnvTab(QWidget):
                     if line:
                         update_signal.emit(line.strip(), "")
                         # Tăng thanh tiến trình
-                        current_value = self.progress.value()
+                        current_value = self.app.progress.value()
                         if current_value < 99:
                             progress_signal.emit(current_value + 1)
 
@@ -453,21 +446,21 @@ class EnvTab(QWidget):
 
                 if returncode == 0:
                     progress_signal.emit(100)
-                    update_signal.emit("Đã cài đặt thành công các gói từ requirements.txt", "success")
-                    finished_signal.emit(True, "Đã cài đặt thành công các gói")
+                    update_signal.emit("Successfully installed word packages requirements.txt", "success")
+                    finished_signal.emit(True, "Packages successfully installed")
                 else:
                     progress_signal.emit(0)
-                    update_signal.emit("Lỗi khi cài đặt các gói", "error")
-                    finished_signal.emit(False, "Không thể cài đặt các gói")
+                    update_signal.emit("Error installing packages", "error")
+                    finished_signal.emit(False, "Unable to install packages")
 
             except Exception as e:
                 progress_signal.emit(0)
-                update_signal.emit(f"Lỗi: {str(e)}", "error")
+                update_signal.emit(f"Error: {str(e)}", "error")
                 finished_signal.emit(False, str(e))
 
         # Tạo và cấu hình luồng worker
         self.worker = WorkerThread(run_requirements_install)
         self.worker.update_signal.connect(self.log)
-        self.worker.progress_signal.connect(self.progress.setValue)
+        self.worker.progress_signal.connect(self.app.progress.setValue)
         self.worker.finished_signal.connect(self.on_task_finished)
         self.worker.start()

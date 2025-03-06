@@ -1,6 +1,10 @@
 
+def firstupper(value: str):
+    return value[0].upper() + value[1:]
+
+
 def services_template(app_name):
-    app_name_capitalize = app_name.capitalize()
+    app_name_capitalize = firstupper(app_name)
 
     return f"""from utils.decorators import singleton
 from django.db import models
