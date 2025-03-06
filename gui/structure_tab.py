@@ -142,7 +142,7 @@ class StructureTab(QWidget):
         # Thêm widget vào splitter
         splitter.addWidget(self.tree_widget)
         splitter.addWidget(feature_widget)
-        splitter.setSizes([120, 400])  # Thiết lập kích thước ban đầu
+        splitter.setSizes([120, 1580])  # Thiết lập kích thước ban đầu
         
         layout.addWidget(splitter, 1)  # Làm cho splitter chiếm không gian có sẵn
         

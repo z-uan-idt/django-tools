@@ -1,7 +1,7 @@
 LIGHT_THEME = """
     /* Biến màu sắc */
     * {
-        font-family: Consolas, Arial, sans-serif;
+        font-family: 'Consolas', 'Monaco', 'Menlo', Arial, monospace;
         line-height: 1;
     }
     
