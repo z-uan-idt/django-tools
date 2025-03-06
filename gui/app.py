@@ -32,6 +32,12 @@ class CustomTitleBar(QWidget):
         self.btn_minimize.setFixedSize(30, 30)
         self.btn_minimize.clicked.connect(self.parent().showMinimized)
         
+        # Add maximize/restore button
+        self.btn_maximize = QPushButton("□")  # Square symbol for maximize
+        self.btn_maximize.setStyleSheet("color: #000000; padding: 0 0 2px 2px")
+        self.btn_maximize.setFixedSize(30, 30)
+        self.btn_maximize.clicked.connect(self.toggleMaximized)
+        
         self.btn_close = QPushButton("×")
         self.btn_close.setStyleSheet("color: #000000; padding: 0 0 2px 2px")
         self.btn_close.setFixedSize(30, 30)
@@ -40,11 +46,32 @@ class CustomTitleBar(QWidget):
         layout.addWidget(self.title)
         layout.addStretch()
         layout.addWidget(self.btn_minimize)
+        layout.addWidget(self.btn_maximize) 
         layout.addWidget(self.btn_close)
         
         # Biến để theo dõi vị trí chuột khi kéo cửa sổ
         self.m_drag = False
         self.startPos = None
+    
+    # Toggle maximized/normal state
+    def toggleMaximized(self):
+        parent = self.window()
+        if parent.isMaximized():
+            parent.showNormal()
+            self.updateMaximizeButton(False)
+        else:
+            parent.showMaximized()
+            self.updateMaximizeButton(True)
+    
+    # Update maximize button appearance based on state
+    def updateMaximizeButton(self, is_maximized):
+        if is_maximized:
+            # Use a "restore down" symbol (⧉) when maximized
+            self.btn_maximize.setText("⧉")
+            # Alternative symbols if the above doesn't display correctly: ▣ or ❐
+        else:
+            # Use a "maximize" symbol (□) when in normal state
+            self.btn_maximize.setText("□")
     
     # Cập nhật tiêu đề
     def updateTitle(self, title):
@@ -82,10 +109,10 @@ class EnvSetupApp(QMainWindow):
         self.setWindowTitle("Python Django Base Setup")
         # self.showFullScreen()
         screen = QApplication.primaryScreen().size()
-        width = screen.width() - 100
-        height = screen.height() - 200
-        self.setGeometry(50, 100, width, height)
-        self.setMinimumSize(width, height)
+        self.screen_width = screen.width() - 100
+        self.screen_height = screen.height() - 200
+        self.setGeometry(50, 100, self.screen_width, self.screen_height)
+        self.setMinimumSize(self.screen_width, self.screen_height)
         
         # Xác định hệ điều hành
         self.os_type = platform.system()
@@ -131,7 +158,7 @@ class EnvSetupApp(QMainWindow):
         # Tab Cấu trúc dự án
         self.structure_tab = StructureTab(self.tab_widget, self)
         self.structure_tab.setVisible(False)
-
+        
         # Frame chọn đường dẫn dự án
         project_frame = QWidget()
         project_layout = QHBoxLayout(project_frame)
@@ -204,7 +231,9 @@ class EnvSetupApp(QMainWindow):
     
     def clear_select_project(self):
         self.project_path.setText("")
-        
+
+        self.tab_widget.clear()
+        self.tab_widget.addTab(self.env_tab, "Project Setup")
         self.tab_widget.setCurrentIndex(0)
             
         # Cập nhật cấu trúc cây cho cả hai tab
@@ -491,10 +520,10 @@ class EnvSetupApp(QMainWindow):
             
             if not os.path.exists(setting_path):
                 self.tab_widget.clear()
-                self.tab_widget.addTab(self.env_tab, "Environment")
+                self.tab_widget.addTab(self.env_tab, "Project Setup")
             else:
                 self.tab_widget.clear()
-                self.tab_widget.addTab(self.env_tab, "Environment")
+                self.tab_widget.addTab(self.env_tab, "Project Setup")
                 self.tab_widget.addTab(self.structure_tab, "Project structure")
             
             self.tab_widget.setCurrentIndex(0)

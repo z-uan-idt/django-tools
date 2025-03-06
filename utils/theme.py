@@ -1,8 +1,8 @@
 LIGHT_THEME = """
     /* Biến màu sắc */
     * {
-        font-family: Arial, sans-serif;
-        line-height: 1.2;
+        font-family: Consolas, Arial, sans-serif;
+        line-height: 1;
     }
     
     /* QWidget - Toàn bộ cửa sổ và widget */
@@ -12,7 +12,7 @@ LIGHT_THEME = """
     }
     
     QTabBar::tab {
-        margin-right: 5px;  /* Khoảng cách giữa các tab */
+        margin-right: 2px;  /* Khoảng cách giữa các tab */
     }
     
     /* QMainWindow - Cửa sổ chính */
@@ -166,6 +166,7 @@ LIGHT_THEME = """
         padding: 8px 12px;
         min-width: 80px;
         margin-bottom: 4px;
+        margin-left: 0;
     }
     QTabBar::tab:selected {
         border-right: 2px solid #ffffff;
